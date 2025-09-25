@@ -4,15 +4,19 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
-from dash import Dash, dcc, html
+from dash import Dash, dcc, html, Input, Output, callback
 
 
-def build_figure() -> "px.Figure":
+def build_figure(region: str | None = None) -> "px.Figure":
     project_root = Path(__file__).parent
     data_csv_path = project_root / "data" / "pink_morsel_sales.csv"
 
     data_frame = pd.read_csv(data_csv_path)
     data_frame["Date"] = pd.to_datetime(data_frame["Date"], errors="coerce")
+
+    # Optional filter by region (except for "all")
+    if region and region.lower() != "all":
+        data_frame = data_frame[data_frame["Region"].str.lower() == region.lower()]
 
     # Aggregate daily total sales and sort chronologically
     daily_sales = (
@@ -43,15 +47,41 @@ def build_figure() -> "px.Figure":
 
 app = Dash(__name__)
 
+region_options = [
+    {"label": "All", "value": "all"},
+    {"label": "North", "value": "north"},
+    {"label": "East", "value": "east"},
+    {"label": "South", "value": "south"},
+    {"label": "West", "value": "west"},
+]
+
 app.layout = html.Div(
     children=[
         html.H1(
             children="Pink Morsel Sales Visualiser",
             style={"textAlign": "center"},
         ),
-        dcc.Graph(id="sales-line-chart", figure=build_figure()),
+        html.Div(
+            children=[
+                html.Label("Region", htmlFor="region-radio"),
+                dcc.RadioItems(
+                    id="region-radio",
+                    options=region_options,
+                    value="all",
+                    labelStyle={"display": "inline-block", "marginRight": "12px"},
+                    inline=True,
+                ),
+            ],
+            style={"textAlign": "center", "margin": "16px 0"},
+        ),
+        dcc.Graph(id="sales-line-chart", figure=build_figure("all")),
     ]
 )
+
+
+@callback(Output("sales-line-chart", "figure"), Input("region-radio", "value"))
+def update_chart(selected_region: str):
+    return build_figure(selected_region)
 
 
 if __name__ == "__main__":
